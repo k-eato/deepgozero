@@ -34,13 +34,13 @@ from torch_utils import FastTensorDataLoader
 @ck.option(
     '--load', '-ld', is_flag=True, help='Load Model?')
 @ck.option(
-    '--device', '-d', default='cuda:1',
+    '--device', '-d', default='cuda',
     help='Device')
 def main(data_root, ont, batch_size, epochs, load, device):
     go_file = f'{data_root}/go.norm'
-    model_file = f'{data_root}/{ont}/deepgozero_zero_10.th'
-    terms_file = f'{data_root}/{ont}/terms_zero_10.pkl'
-    out_file = f'{data_root}/{ont}/predictions_deepgozero_zero_10.pkl'
+    model_file = f'{data_root}/{ont}/deepgozero.th'
+    terms_file = f'{data_root}/{ont}/terms.pkl'
+    out_file = f'{data_root}/{ont}/predictions_deepgozero.pkl'
 
     go = Ontology(f'{data_root}/go.obo', with_rels=True)
     loss_func = nn.BCELoss()
@@ -248,7 +248,7 @@ class MLPBlock(nn.Module):
         super().__init__()
         self.linear = nn.Linear(in_features, out_features, bias)
         self.activation = activation()
-        self.layer_norm = nn.BatchNorm(out_features) if layer_norm else None
+        self.layer_norm = nn.BatchNorm1d(out_features) if layer_norm else None
         self.dropout = nn.Dropout(dropout) if dropout else None
 
     def forward(self, x):
