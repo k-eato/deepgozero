@@ -309,8 +309,8 @@ class DGELModel(nn.Module):
                 else:
                     print("ERROR MISSING GO ID")
                 
-                # with th.no_grad():
-                #     self.go_embed.weight[index] = th.from_numpy(es[go_id])
+                with th.no_grad():
+                    self.go_embed.weight[index] = th.from_numpy(es[go_id])
 
         self.rel_embed = nn.Embedding(nb_rels + 1, embed_dim)
         nn.init.uniform_(self.rel_embed.weight, -k, k)
