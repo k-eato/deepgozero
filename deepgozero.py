@@ -13,10 +13,9 @@ from torch.utils.data import DataLoader, IterableDataset, TensorDataset
 from itertools import cycle
 import math
 from aminoacids import to_onehot, MAXLEN
-from dgl.nn import GraphConv, GATConv
-import dgl
 from torch_utils import FastTensorDataLoader
-
+import pickle
+import seaborn as sns
 
 @ck.command()
 @ck.option(
@@ -29,7 +28,7 @@ from torch_utils import FastTensorDataLoader
     '--batch-size', '-bs', default=37,
     help='Batch size for training')
 @ck.option(
-    '--epochs', '-ep', default=256,
+    '--epochs', '-ep', default=50,
     help='Training epochs')
 @ck.option(
     '--load', '-ld', is_flag=True, help='Load Model?')
@@ -38,9 +37,9 @@ from torch_utils import FastTensorDataLoader
     help='Device')
 def main(data_root, ont, batch_size, epochs, load, device):
     go_file = f'{data_root}/go.norm'
-    model_file = f'{data_root}/{ont}/deepgozero.th'
+    model_file = f'{data_root}/{ont}/deepgozero_anc2vec.th'
     terms_file = f'{data_root}/{ont}/terms.pkl'
-    out_file = f'{data_root}/{ont}/predictions_deepgozero.pkl'
+    out_file = f'{data_root}/{ont}/predictions_deepgozero_anc2vec.pkl'
 
     go = Ontology(f'{data_root}/go.obo', with_rels=True)
     loss_func = nn.BCELoss()
@@ -61,7 +60,7 @@ def main(data_root, ont, batch_size, epochs, load, device):
     nf4 = th.LongTensor(nf4).to(device)
     normal_forms = nf1, nf2, nf3, nf4
 
-    net = DGELModel(n_iprs, n_terms, n_zeros, n_rels, device).to(device)
+    net = DGELModel(n_iprs, n_terms, n_zeros, n_rels, terms_dict, zero_classes, device).to(device)
     print(net)
     train_features, train_labels = train_data
     valid_features, valid_labels = valid_data
@@ -83,6 +82,8 @@ def main(data_root, ont, batch_size, epochs, load, device):
     best_loss = 10000.0
     if not load:
         print('Training the model')
+
+        roc_auc_list = []
         for epoch in range(epochs):
             net.train()
             train_loss = 0
@@ -123,6 +124,7 @@ def main(data_root, ont, batch_size, epochs, load, device):
                         preds = np.append(preds, logits.detach().cpu().numpy())
                 valid_loss /= valid_steps
                 roc_auc = compute_roc(valid_labels, preds)
+                roc_auc_list.append(roc_auc)
                 print(f'Epoch {epoch}: Loss - {train_loss}, EL Loss: {train_elloss}, Valid loss - {valid_loss}, AUC - {roc_auc}')
 
             print('EL Loss', train_elloss)
@@ -133,6 +135,15 @@ def main(data_root, ont, batch_size, epochs, load, device):
 
             scheduler.step()
             
+    # Save and plot AUC
+    auc_file = f'{data_root}/{ont}/validation_auc.txt'
+    auc_out = open(auc_file, 'w')
+    auc_out.writelines(roc_auc_list)
+    auc_out.close()
+    chart = sns.lineplot(x=range(len(roc_auc_list)), y=roc_auc_list)
+    chart.set(xlabel='Epoch', ylabel='AUROC')
+    fig = chart.get_figure()
+    fig.savefig(f'{data_root}/{ont}/auc_graph.png') 
 
     # Loading best model
     print('Loading the best model')
@@ -262,7 +273,7 @@ class MLPBlock(nn.Module):
 
 class DGELModel(nn.Module):
 
-    def __init__(self, nb_iprs, nb_gos, nb_zero_gos, nb_rels, device, hidden_dim=1024, embed_dim=1024, margin=0.1):
+    def __init__(self, nb_iprs, nb_gos, nb_zero_gos, nb_rels, terms_dict, zero_classes, device, hidden_dim=1024, embed_dim=1024, margin=0.1):
         super().__init__()
         self.nb_gos = nb_gos
         self.nb_zero_gos = nb_zero_gos
@@ -284,6 +295,20 @@ class DGELModel(nn.Module):
         # self.go_embed.weight.requires_grad = False
         # self.go_rad.weight.requires_grad = False
         
+        # Initialize GO embeddings with anc2vec
+        with open('anc2vec/go_emb.pkl', 'rb') as f:
+            es = pickle.load(f)
+            for go_id in es.keys():
+                if go_id in terms_dict:
+                    index = terms_dict[go_id]
+                elif go_id in zero_classes:
+                    index = zero_classes[go_id]
+                else:
+                    print("ERROR MISSING GO ID")
+                
+                with th.no_grad():
+                    self.go_embed.weight[index] = th.from_numpy(es[go_id])
+
         self.rel_embed = nn.Embedding(nb_rels + 1, embed_dim)
         nn.init.uniform_(self.rel_embed.weight, -k, k)
         self.all_gos = th.arange(self.nb_gos).to(device)
