@@ -149,44 +149,44 @@ def main(data_root, ont, batch_size, epochs, load, device):
         auc_out.close()
 
     # Loading best model
-    # print('Loading the best model')
-    # net.load_state_dict(th.load(model_file))
-    # net.eval()
-    # with th.no_grad():
-    #     test_steps = int(math.ceil(len(test_labels) / batch_size))
-    #     test_loss = 0
-    #     preds = []
-    #     with ck.progressbar(length=test_steps, show_pos=True) as bar:
-    #         for batch_features, batch_labels in test_loader:
-    #             bar.update(1)
-    #             batch_features = batch_features.to(device)
-    #             batch_labels = batch_labels.to(device)
-    #             logits = net(batch_features)
-    #             batch_loss = F.binary_cross_entropy(logits, batch_labels)
-    #             test_loss += batch_loss.detach().cpu().item()
-    #             preds = np.append(preds, logits.detach().cpu().numpy())
-    #         test_loss /= test_steps
-    #     preds = preds.reshape(-1, n_terms)
-    #     roc_auc = compute_roc(test_labels, preds)
-    #     print(f'Test Loss - {test_loss}, AUC - {roc_auc}')
+    print('Loading the best model')
+    net.load_state_dict(th.load(model_file))
+    net.eval()
+    with th.no_grad():
+        test_steps = int(math.ceil(len(test_labels) / batch_size))
+        test_loss = 0
+        preds = []
+        with ck.progressbar(length=test_steps, show_pos=True) as bar:
+            for batch_features, batch_labels in test_loader:
+                bar.update(1)
+                batch_features = batch_features.to(device)
+                batch_labels = batch_labels.to(device)
+                logits = net(batch_features)
+                batch_loss = F.binary_cross_entropy(logits, batch_labels)
+                test_loss += batch_loss.detach().cpu().item()
+                preds = np.append(preds, logits.detach().cpu().numpy())
+            test_loss /= test_steps
+        preds = preds.reshape(-1, n_terms)
+        roc_auc = compute_roc(test_labels, preds)
+        print(f'Test Loss - {test_loss}, AUC - {roc_auc}')
 
         
-    # preds = list(preds)
-    # # Propagate scores using ontology structure
-    # for i, scores in enumerate(preds):
-    #     prop_annots = {}
-    #     for go_id, j in terms_dict.items():
-    #         score = scores[j]
-    #         for sup_go in go.get_anchestors(go_id):
-    #             if sup_go in prop_annots:
-    #                 prop_annots[sup_go] = max(prop_annots[sup_go], score)
-    #             else:
-    #                 prop_annots[sup_go] = score
-    #     for go_id, score in prop_annots.items():
-    #         if go_id in terms_dict:
-    #             scores[terms_dict[go_id]] = score
+    preds = list(preds)
+    # Propagate scores using ontology structure
+    for i, scores in enumerate(preds):
+        prop_annots = {}
+        for go_id, j in terms_dict.items():
+            score = scores[j]
+            for sup_go in go.get_anchestors(go_id):
+                if sup_go in prop_annots:
+                    prop_annots[sup_go] = max(prop_annots[sup_go], score)
+                else:
+                    prop_annots[sup_go] = score
+        for go_id, score in prop_annots.items():
+            if go_id in terms_dict:
+                scores[terms_dict[go_id]] = score
 
-    # test_df['preds'] = preds
+    test_df['preds'] = preds
 
     test_df.to_pickle(out_file)
 
@@ -276,7 +276,7 @@ class MLPBlock(nn.Module):
 
 class DGELModel(nn.Module):
 
-    def __init__(self, nb_iprs, nb_gos, nb_zero_gos, nb_rels, terms_dict, zero_classes, device, hidden_dim=4, embed_dim=4, margin=0.1):
+    def __init__(self, nb_iprs, nb_gos, nb_zero_gos, nb_rels, terms_dict, zero_classes, device, hidden_dim=1024, embed_dim=1024, margin=0.1):
         super().__init__()
         self.nb_gos = nb_gos
         self.nb_zero_gos = nb_zero_gos
