@@ -123,7 +123,7 @@ def main(data_root, ont, batch_size, epochs, load, device):
                         preds = np.append(preds, logits.detach().cpu().numpy())
                 valid_loss /= valid_steps
                 roc_auc = compute_roc(valid_labels, preds)
-                roc_auc_list.append(str(roc_auc))
+                roc_auc_list.append(roc_auc)
                 print(f'Epoch {epoch}: Loss - {train_loss}, EL Loss: {train_elloss}, Valid loss - {valid_loss}, AUC - {roc_auc}')
 
             print('EL Loss', train_elloss)
@@ -135,14 +135,17 @@ def main(data_root, ont, batch_size, epochs, load, device):
             scheduler.step()
             
         # Save and plot AUC
-        auc_file = f'{data_root}/{ont}/validation_auc.txt'
-        auc_out = open(auc_file, 'w')
-        auc_out.writelines(roc_auc_list)
-        auc_out.close()
-        chart = sns.lineplot(x=range(len(roc_auc_list)), y=roc_auc_list)
+        df = pd.DataFrame(roc_auc_list, columns=['auc'])
+        df['epoch'] = range(len(roc_auc_list))
+        chart = sns.lineplot(data=df, x='epoch', y='auc')
         chart.set(xlabel='Epoch', ylabel='AUROC')
         fig = chart.get_figure()
-        fig.savefig(f'{data_root}/{ont}/auc_graph.png') 
+        fig.savefig(f'{data_root}/{ont}/auc_graph.png')
+        roc_auc_list = [ '%.4f' % elem for elem in roc_auc_list ]
+        auc_file = f'{data_root}/{ont}/validation_auc.txt'
+        auc_out = open(auc_file, 'w')
+        auc_out.write('\n'.join(str(i) for i in roc_auc_list))
+        auc_out.close()
 
     # Loading best model
     print('Loading the best model')
