@@ -13,9 +13,8 @@ from torch.utils.data import DataLoader, IterableDataset, TensorDataset
 from itertools import cycle
 import math
 from aminoacids import to_onehot, MAXLEN
-from dgl.nn import GraphConv, GATConv
-import dgl
 from torch_utils import FastTensorDataLoader
+import seaborn as sns
 
 
 @ck.command()
@@ -29,7 +28,7 @@ from torch_utils import FastTensorDataLoader
     '--batch-size', '-bs', default=37,
     help='Batch size for training')
 @ck.option(
-    '--epochs', '-ep', default=256,
+    '--epochs', '-ep', default=50,
     help='Training epochs')
 @ck.option(
     '--load', '-ld', is_flag=True, help='Load Model?')
@@ -83,6 +82,7 @@ def main(data_root, ont, batch_size, epochs, load, device):
     best_loss = 10000.0
     if not load:
         print('Training the model')
+        roc_auc_list = []
         for epoch in range(epochs):
             net.train()
             train_loss = 0
@@ -123,6 +123,7 @@ def main(data_root, ont, batch_size, epochs, load, device):
                         preds = np.append(preds, logits.detach().cpu().numpy())
                 valid_loss /= valid_steps
                 roc_auc = compute_roc(valid_labels, preds)
+                roc_auc_list.append(str(roc_auc))
                 print(f'Epoch {epoch}: Loss - {train_loss}, EL Loss: {train_elloss}, Valid loss - {valid_loss}, AUC - {roc_auc}')
 
             print('EL Loss', train_elloss)
@@ -133,6 +134,15 @@ def main(data_root, ont, batch_size, epochs, load, device):
 
             scheduler.step()
             
+        # Save and plot AUC
+        auc_file = f'{data_root}/{ont}/validation_auc.txt'
+        auc_out = open(auc_file, 'w')
+        auc_out.writelines(roc_auc_list)
+        auc_out.close()
+        chart = sns.lineplot(x=range(len(roc_auc_list)), y=roc_auc_list)
+        chart.set(xlabel='Epoch', ylabel='AUROC')
+        fig = chart.get_figure()
+        fig.savefig(f'{data_root}/{ont}/auc_graph.png') 
 
     # Loading best model
     print('Loading the best model')
@@ -262,7 +272,7 @@ class MLPBlock(nn.Module):
 
 class DGELModel(nn.Module):
 
-    def __init__(self, nb_iprs, nb_gos, nb_zero_gos, nb_rels, device, hidden_dim=1024, embed_dim=1024, margin=0.1):
+    def __init__(self, nb_iprs, nb_gos, nb_zero_gos, nb_rels, device, hidden_dim=32, embed_dim=32, margin=0.1):
         super().__init__()
         self.nb_gos = nb_gos
         self.nb_zero_gos = nb_zero_gos
