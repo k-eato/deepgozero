@@ -28,7 +28,7 @@ import seaborn as sns
     '--batch-size', '-bs', default=37,
     help='Batch size for training')
 @ck.option(
-    '--epochs', '-ep', default=50,
+    '--epochs', '-ep', default=256,
     help='Training epochs')
 @ck.option(
     '--load', '-ld', is_flag=True, help='Load Model?')
@@ -37,9 +37,9 @@ import seaborn as sns
     help='Device')
 def main(data_root, ont, batch_size, epochs, load, device):
     go_file = f'{data_root}/go.norm'
-    model_file = f'{data_root}/{ont}/deepgozero.th'
+    model_file = f'{data_root}/{ont}/deepgozero_baseline.th'
     terms_file = f'{data_root}/{ont}/terms.pkl'
-    out_file = f'{data_root}/{ont}/predictions_deepgozero.pkl'
+    out_file = f'{data_root}/{ont}/predictions_deepgozero_baseline.pkl'
 
     go = Ontology(f'{data_root}/go.obo', with_rels=True)
     loss_func = nn.BCELoss()
@@ -127,10 +127,11 @@ def main(data_root, ont, batch_size, epochs, load, device):
                 print(f'Epoch {epoch}: Loss - {train_loss}, EL Loss: {train_elloss}, Valid loss - {valid_loss}, AUC - {roc_auc}')
 
             print('EL Loss', train_elloss)
-            if valid_loss < best_loss:
-                best_loss = valid_loss
-                print('Saving model')
-                th.save(net.state_dict(), model_file)
+            if epoch > 30:
+                if valid_loss < best_loss:
+                    best_loss = valid_loss
+                    print('Saving model')
+                    th.save(net.state_dict(), model_file)
 
             scheduler.step()
             
@@ -275,7 +276,7 @@ class MLPBlock(nn.Module):
 
 class DGELModel(nn.Module):
 
-    def __init__(self, nb_iprs, nb_gos, nb_zero_gos, nb_rels, device, hidden_dim=32, embed_dim=32, margin=0.1):
+    def __init__(self, nb_iprs, nb_gos, nb_zero_gos, nb_rels, device, hidden_dim=1024, embed_dim=1024, margin=0.1):
         super().__init__()
         self.nb_gos = nb_gos
         self.nb_zero_gos = nb_zero_gos
@@ -436,6 +437,20 @@ def get_data(df, iprs_dict, terms_dict):
                 g_id = terms_dict[go_id]
                 labels[i, g_id] = 1
     return data, labels
+
+def get_smooth_data(df, iprs_dict, terms_dict):
+    data = th.zeros((len(df), len(iprs_dict)), dtype=th.float32)
+    labels = th.zeros((len(df), len(terms_dict)), dtype=th.float32) + 0.05
+    for i, row in enumerate(df.itertuples()):
+        for ipr in row.interpros:
+            if ipr in iprs_dict:
+                data[i, iprs_dict[ipr]] = 1
+        for go_id in row.prop_annotations: # prop_annotations for full model
+            if go_id in terms_dict:
+                g_id = terms_dict[go_id]
+                labels[i, g_id] = 0.9
+    return data, labels
+
 
 if __name__ == '__main__':
     main()
