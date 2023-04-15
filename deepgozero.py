@@ -28,7 +28,7 @@ import seaborn as sns
     '--batch-size', '-bs', default=37,
     help='Batch size for training')
 @ck.option(
-    '--epochs', '-ep', default=50,
+    '--epochs', '-ep', default=256,
     help='Training epochs')
 @ck.option(
     '--load', '-ld', is_flag=True, help='Load Model?')
@@ -37,9 +37,9 @@ import seaborn as sns
     help='Device')
 def main(data_root, ont, batch_size, epochs, load, device):
     go_file = f'{data_root}/go.norm'
-    model_file = f'{data_root}/{ont}/deepgozero_anc2vec.th'
+    model_file = f'{data_root}/{ont}/deepgozero_anc2vec_retrain.th'
     terms_file = f'{data_root}/{ont}/terms.pkl'
-    out_file = f'{data_root}/{ont}/predictions_deepgozero_anc2vec.pkl'
+    out_file = f'{data_root}/{ont}/predictions_deepgozero_anc2vec_retrain.pkl'
 
     go = Ontology(f'{data_root}/go.obo', with_rels=True)
     loss_func = nn.BCELoss()
@@ -78,8 +78,11 @@ def main(data_root, ont, batch_size, epochs, load, device):
     
     optimizer = th.optim.Adam(net.parameters(), lr=5e-4)
     scheduler = MultiStepLR(optimizer, milestones=[5, 20], gamma=0.1)
+    for i in range(30):
+        scheduler.step()
 
     best_loss = 10000.0
+    # net.load_state_dict(th.load(f'{data_root}/{ont}/deepgozero_anc2vec_max.th'))
     if not load:
         print('Training the model')
 
