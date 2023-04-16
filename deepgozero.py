@@ -37,9 +37,9 @@ import seaborn as sns
     help='Device')
 def main(data_root, ont, batch_size, epochs, load, device):
     go_file = f'{data_root}/go.norm'
-    model_file = f'{data_root}/{ont}/deepgozero_baseline.th'
+    model_file = f'{data_root}/{ont}/deepgozero_pretrain.th'
     terms_file = f'{data_root}/{ont}/terms.pkl'
-    out_file = f'{data_root}/{ont}/predictions_deepgozero_baseline.pkl'
+    out_file = f'{data_root}/{ont}/predictions_deepgozero_pretrain.pkl'
 
     go = Ontology(f'{data_root}/go.obo', with_rels=True)
     loss_func = nn.BCELoss()
@@ -77,12 +77,22 @@ def main(data_root, ont, batch_size, epochs, load, device):
     test_labels = test_labels.detach().cpu().numpy()
     
     optimizer = th.optim.Adam(net.parameters(), lr=5e-4)
+    prescheduler = MultiStepLR(optimizer, milestones=[5000], gamma=0.1)
     scheduler = MultiStepLR(optimizer, milestones=[5, 20], gamma=0.1)
 
     best_loss = 10000.0
     if not load:
         print('Training the model')
         roc_auc_list = []
+        pretrain_length = 19000
+        for count in range(pretrain_length):
+            el_loss = net.el_loss(normal_forms)
+            optimizer.zero_grad()
+            el_loss.backward()
+            optimizer.step()
+            prescheduler.step()
+            if count % 100 == 0:
+                print('Pretrain EL Loss', el_loss.detach().item())
         for epoch in range(epochs):
             net.train()
             train_loss = 0
@@ -126,7 +136,7 @@ def main(data_root, ont, batch_size, epochs, load, device):
                 roc_auc_list.append(roc_auc)
                 print(f'Epoch {epoch}: Loss - {train_loss}, EL Loss: {train_elloss}, Valid loss - {valid_loss}, AUC - {roc_auc}')
 
-            print('EL Loss', train_elloss)
+            
             if epoch > 30:
                 if valid_loss < best_loss:
                     best_loss = valid_loss
@@ -437,20 +447,6 @@ def get_data(df, iprs_dict, terms_dict):
                 g_id = terms_dict[go_id]
                 labels[i, g_id] = 1
     return data, labels
-
-def get_smooth_data(df, iprs_dict, terms_dict):
-    data = th.zeros((len(df), len(iprs_dict)), dtype=th.float32)
-    labels = th.zeros((len(df), len(terms_dict)), dtype=th.float32) + 0.05
-    for i, row in enumerate(df.itertuples()):
-        for ipr in row.interpros:
-            if ipr in iprs_dict:
-                data[i, iprs_dict[ipr]] = 1
-        for go_id in row.prop_annotations: # prop_annotations for full model
-            if go_id in terms_dict:
-                g_id = terms_dict[go_id]
-                labels[i, g_id] = 0.9
-    return data, labels
-
 
 if __name__ == '__main__':
     main()
