@@ -37,9 +37,9 @@ import seaborn as sns
     help='Device')
 def main(data_root, ont, batch_size, epochs, load, device):
     go_file = f'{data_root}/go.norm'
-    model_file = f'{data_root}/{ont}/deepgozero_anc2vec_retrain.th'
+    model_file = f'{data_root}/{ont}/deepgozero_anc2vec_new.th'
     terms_file = f'{data_root}/{ont}/terms.pkl'
-    out_file = f'{data_root}/{ont}/predictions_deepgozero_anc2vec_retrain.pkl'
+    out_file = f'{data_root}/{ont}/predictions_deepgozero_anc2vec_new.pkl'
 
     go = Ontology(f'{data_root}/go.obo', with_rels=True)
     loss_func = nn.BCELoss()
@@ -292,6 +292,7 @@ class DGELModel(nn.Module):
         # ELEmbeddings
         self.embed_dim = embed_dim
         self.hasFuncIndex = th.LongTensor([nb_rels]).to(device)
+        print("EL TERMS:", nb_gos + nb_zero_gos)
         self.go_embed = nn.Embedding(nb_gos + nb_zero_gos, embed_dim)
         self.go_norm = nn.BatchNorm1d(embed_dim)
         k = math.sqrt(1 / embed_dim)
@@ -302,18 +303,22 @@ class DGELModel(nn.Module):
         # self.go_rad.weight.requires_grad = False
         
         # Initialize GO embeddings with anc2vec
-        with open('anc2vec/go_emb.pkl', 'rb') as f:
+        with open('anc2vec/go_emb_new.pkl', 'rb') as f:
             es = pickle.load(f)
+            count = 0
             for go_id in es.keys():
                 if go_id in terms_dict:
                     index = terms_dict[go_id]
+                    count += 1
                 elif go_id in zero_classes:
                     index = zero_classes[go_id]
-                else:
-                    print("ERROR MISSING GO ID")
+                    count += 1
                 
                 with th.no_grad():
                     self.go_embed.weight[index] = th.from_numpy(es[go_id])
+
+        print("NEW TERMS:", count)
+        exit()
 
         self.rel_embed = nn.Embedding(nb_rels + 1, embed_dim)
         nn.init.uniform_(self.rel_embed.weight, -k, k)
