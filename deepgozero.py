@@ -37,9 +37,9 @@ import seaborn as sns
     help='Device')
 def main(data_root, ont, batch_size, epochs, load, device):
     go_file = f'{data_root}/go.norm'
-    model_file = f'{data_root}/{ont}/deepgozero_anc2vec_new.th'
+    model_file = f'{data_root}/{ont}/deepgozero_anc2vec.th'
     terms_file = f'{data_root}/{ont}/terms.pkl'
-    out_file = f'{data_root}/{ont}/predictions_deepgozero_anc2vec_new.pkl'
+    out_file = f'{data_root}/{ont}/predictions_deepgozero_anc2vec.pkl'
 
     go = Ontology(f'{data_root}/go.obo', with_rels=True)
     loss_func = nn.BCELoss()
@@ -303,7 +303,7 @@ class DGELModel(nn.Module):
         # self.go_rad.weight.requires_grad = False
         
         # Initialize GO embeddings with anc2vec
-        with open('anc2vec/go_emb_new.pkl', 'rb') as f:
+        with open('anc2vec/go_emb_anc2vec.pkl', 'rb') as f:
             es = pickle.load(f)
             count = 0
             for go_id in es.keys():
@@ -316,9 +316,6 @@ class DGELModel(nn.Module):
                 
                 with th.no_grad():
                     self.go_embed.weight[index] = th.from_numpy(es[go_id])
-
-        print("NEW TERMS:", count)
-        exit()
 
         self.rel_embed = nn.Embedding(nb_rels + 1, embed_dim)
         nn.init.uniform_(self.rel_embed.weight, -k, k)
