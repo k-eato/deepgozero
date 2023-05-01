@@ -303,7 +303,7 @@ class DGELModel(nn.Module):
         # self.go_rad.weight.requires_grad = False
         
         # Initialize GO embeddings with anc2vec
-        with open('anc2vec/go_emb_neigh2vec.pkl', 'rb') as f:
+        with open('neigh2vec/go_emb_neigh2vec.pkl', 'rb') as f:
             es = pickle.load(f)
             count = 0
             for go_id in es.keys():
