@@ -1,4 +1,4 @@
-
+#!/usr/bin/env python
 
 import click as ck
 import numpy as np
@@ -10,19 +10,27 @@ from collections import deque
 from mpl_toolkits.mplot3d import Axes3D
 
 from utils import Ontology, FUNC_DICT
-import copy
+
 from sklearn.manifold import TSNE
 from sklearn.metrics import roc_curve, auc, matthews_corrcoef
 import matplotlib.pyplot as plt
-from deepgozero import DGELModel, load_normal_forms
+# from deepgoel import DGELModel, load_normal_forms
+import torch as th
+from torch.optim.lr_scheduler import MultiStepLR
+from torch.utils.data import DataLoader, IterableDataset, TensorDataset
+from torch_utils import FastTensorDataLoader
+from torch import nn
+from torch.nn import functional as F
+from torch import optim
+from torch.optim.lr_scheduler import MultiStepLR
+from itertools import cycle
 
 import dgl
 from dgl.nn import GraphConv, GATConv
-#from deepgoel import DGELModel, load_normal_forms
-import torch as th
-from torch import optim
-from torch.utils.data import DataLoader, IterableDataset, TensorDataset
-from torch_utils import FastTensorDataLoader
+
+import copy
+import pickle
+import seaborn as sns
 
 @ck.command()
 @ck.option(
@@ -33,7 +41,7 @@ from torch_utils import FastTensorDataLoader
     help='Prediction model')
 def main(data_root, ont):
     go_file = f'{data_root}/go.norm'
-    model_file = f'{data_root}/{ont}/deepgozero.th'
+    model_file = f'{ont}_deepgozero_untrained.th'
     terms_file = f'{data_root}/{ont}/terms.pkl'
 
     device = 'cpu:0'
